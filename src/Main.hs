@@ -34,6 +34,8 @@ import HarmTrace.Audio.Annotate     ( simpleAnnotator, groupAnnotator
 import HarmTrace.Base.MusicTime-- (AudioFeat, ChordBeatAnnotation, TimedData)
 import HarmTrace.Base.MusicRep (Key)
 
+import qualified  Data.ByteString.Lazy as B
+import Data.Aeson
 import Data.List (delete)
 import System.FilePath (takeFileName)
 import System.Exit (exitSuccess, exitFailure)
@@ -108,6 +110,7 @@ parseMode = mode "parse" [Arg "Mode" "Parse"] "Parse files into harmonic analysi
                ,flagReq ["k", "key"]     (upd "SourceKeyInputFile")  "filepath" "Ground-truth key annotation file"
                ,flagReq ["x", "key-dir"] (upd "AnnotationKeyInputDir")   "filepath" "Ground-truth key annotation directory"
                ,flagNone ["p", "print"] ((Switch "Print"):)                       "Output a .png of the parse tree"
+               ,flagNone ["j", "json"] ((Switch "Json"):)                       "Output a json representation of the parse tree"
                ,flagNone ["s", "print-insertions"] ((Switch "PrintIns"):)         "Show inserted nodes"
                ] ++ inputFlags : helpVerFlags)
 
@@ -127,6 +130,7 @@ mainParse args =
         mdir = getArg args "InputDir"
         kdir = getArg args "AnnotationKeyInputDir"
         prnt = gotArg args "Print"
+        json = gotArg args "Json"
         opts = if gotArg args "PrintIns"
                then delete RemoveInsertions defaultOpts else defaultOpts
 
@@ -136,39 +140,54 @@ mainParse args =
     case (getGram args) of
       Nothing -> putStrLn "Please supply a grammar to use" >> exitFailure
       Just (GrammarEx g) ->
-        case (cStr, sif,mdir, prnt, ky, kdir) of
+        case (cStr, sif,mdir, prnt, json, ky, kdir) of
           -- parse a string of chords
-          (Just c, Nothing, Nothing, False, Nothing, Nothing)  ->
+          (Just c, Nothing, Nothing, False, False, Nothing, Nothing)  ->
             do pr <- parseTreeVerb g opts c
                mapM_ (print . gTreeHead) (parsedPiece pr)
+          -- parse a string of chords
+          (Just c, Nothing, Nothing, False, True, Nothing, Nothing)  ->
+            do pr <- parseTreeVerb g opts c
+               mapM_ (B.putStrLn . encode . toJSON . gTreeHead) (parsedPiece pr)
           -- and print a parsetree     
-          (Just c, Nothing, Nothing, True, Nothing, Nothing)   ->
+          (Just c, Nothing, Nothing, True, False, Nothing, Nothing)   ->
             do pr <- parseTree g opts c 
                let ts = map gTreeHead (parsedPiece pr)
                _ <- printTreeHAn (pieceTreeHAn pr) (trimFilename ("pp" ++ c))
                printTreeHAnF ts (trimFilename c) >> return ()
           -- Parse one file, show full output
-          (Nothing, Just f1, Nothing, False, Nothing, Nothing) -> 
+          (Nothing, Just f1, Nothing, False, False, Nothing, Nothing) -> 
             do pr  <- readFile f1 >>= parseTreeVerb g opts
                print (pieceTreeHAn pr)
                mapM_ (print . gTreeHead) (parsedPiece pr)
-          (Nothing, Just f1, Nothing , True, Nothing, Nothing) ->
+          -- Parse one file, show full output
+          (Nothing, Just f1, Nothing, False, True, Nothing, Nothing) -> 
+            do pr  <- readFile f1 >>= parseTreeVerb g opts
+               print (pieceTreeHAn pr)
+               mapM_ (B.putStrLn . encode . toJSON . gTreeHead) (parsedPiece pr)
+          (Nothing, Just f1, Nothing , True, False, Nothing, Nothing) ->
           --with post processing
             do pr <- readFile f1 >>= parseTree g opts
                let ts = map gTreeHead (parsedPiece pr)
                printTreeHAn (pieceTreeHAn pr) (f1 ++ ".postProc") >> return ()
                printTreeHAnF ts f1 >> return () 
           -- Parse all files in one dir, show condensed output 
-          (Nothing, Nothing, Just dir, False, Nothing, Nothing) ->
+          (Nothing, Nothing, Just dir, False, False, Nothing, Nothing) ->
             parseDir g opts dir bOut
           -- ** audio ground-truth annotation part **   
-          (Nothing, Just f1, Nothing, False, Just kf, Nothing) -> 
+          (Nothing, Just f1, Nothing, False, False, Just kf, Nothing) -> 
           -- parse a ground-truth annotation and its key and give verbose output      
             do key <- readFile kf
                pr  <- readFile f1 >>= parseAnnotationVerb g opts key
                print (pieceTreeHAn pr)
                mapM_ (print . gTreeHead) (take 10 $ parsedPiece pr)
-          (Nothing, Just f1, Nothing, True , Just kf, Nothing) ->
+          (Nothing, Just f1, Nothing, False, True, Just kf, Nothing) -> 
+          -- parse a ground-truth annotation and its key and give verbose output      
+            do key <- readFile kf
+               pr  <- readFile f1 >>= parseAnnotationVerb g opts key
+               print (pieceTreeHAn pr)
+               mapM_ (B.putStrLn . encode . toJSON . gTreeHead) (take 10 $ parsedPiece pr)
+          (Nothing, Just f1, Nothing, True , False, Just kf, Nothing) ->
           -- parse a ground-truth annotation and its key and print the parse 
             do key <- readFile kf
                pr  <- readFile f1 >>= parseAnnotation g opts key 
@@ -176,7 +195,7 @@ mainParse args =
                printTreeHAn (pieceTreeHAn pr) (f1 ++ ".postProc") >> return ()
                printTreeHAnF ts f1 >> return ()   
           -- Parse all files in one dir, show condensed output 
-          (Nothing, Nothing, Just dir, False, Nothing, Just kd) ->
+          (Nothing, Nothing, Just dir, False, False, Nothing, Just kd) ->
             parseAnnotationDir g opts kd dir
           -- Else throw error
           _ -> usageError args err1

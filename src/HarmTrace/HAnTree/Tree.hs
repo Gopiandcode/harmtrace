@@ -1,6 +1,7 @@
-
+{-# LANGUAGE OverloadedStrings #-}
 module HarmTrace.HAnTree.Tree where
 
+import Data.Aeson
 import Data.Maybe
 import qualified Data.Binary as B
 import Control.Monad.State
@@ -15,6 +16,12 @@ import Control.DeepSeq
 -- as Node a [] or NodePn a [] pn
 data Tree a = Node { getLabel :: !a, getChild :: ![Tree a], getPn :: !(Maybe Int) }
   deriving Eq
+
+instance (ToJSON a) => ToJSON (Tree a) where
+  toJSON mt =
+    object [ ("label", toJSON . getLabel $ mt),
+             ("children", toJSON . getChild $ mt),
+             ("pn", toJSON . getPn $ mt) ]
   
 -- specific show instance for pretty printing
 instance (Show a) => Show (Tree a) where 

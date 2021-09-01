@@ -9,6 +9,7 @@ module HarmTrace.HAnTree.HAn where
 import HarmTrace.Base.MusicRep
 import HarmTrace.Models.ChordTokens
 
+import Data.Aeson
 import Control.DeepSeq
 import Data.Binary
 import GHC.Generics (Generic)
@@ -25,6 +26,25 @@ data HAn   = HAn      !Int !String
            | HAnChord !ChordToken
            deriving Generic
            
+
+instance ToJSON Spec
+instance (ToJSON a) => ToJSON (Note a)
+instance (ToJSON a) => ToJSON (Chord a)
+instance ToJSON Accidental
+instance ToJSON Addition
+instance ToJSON Interval
+instance ToJSON Shorthand
+instance ToJSON ParseStatus
+instance ToJSON DiatonicDegree
+instance ToJSON DiatonicNatural
+instance ToJSON Mode
+instance ToJSON HFunc
+instance ToJSON Prep
+instance ToJSON Trans
+instance ToJSON ClassType
+instance ToJSON ChordToken
+instance ToJSON HAn
+
             -- duration Mode constructor_ix specials
 data HFunc = Ton !Int !Mode !Int !(Maybe Spec)
            | Dom !Int !Mode !Int !(Maybe Spec) 

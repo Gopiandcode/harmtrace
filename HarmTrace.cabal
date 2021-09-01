@@ -110,6 +110,8 @@ executable harmtrace
                         instant-generics >= 0.6,
                         binary >= 0.6.4,
                         HarmTrace-Base < 1.2,
+                        aeson,
+                        bytestring,
                         -- statistics >= 0.13,
                         ghc-prim >= 0.2
 
